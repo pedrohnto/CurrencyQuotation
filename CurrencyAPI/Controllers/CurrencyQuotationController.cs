@@ -1,3 +1,4 @@
+using CurrencyAPI.Model;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Newtonsoft.Json;
@@ -19,46 +20,56 @@ namespace CurrencyAPI.Controllers
         {
         }
 
-        [HttpGet("last")]
-        public async Task<string> getLastCurrencyQuotation([FromQuery] string currency)
+        [HttpGet("last/currency")]
+        public async Task<IActionResult> getLastCurrencyQuotation([FromQuery] string currency)
         {
-            return await getBTCQuotationAsync(currency);
+            var response = await getLastCurrencyQuotationAsync(currency);
+            return Ok(response);
+        }
+
+        [HttpGet("last/btc")]
+        public async Task<IActionResult> getLastBTCQuotation()
+        {
+            var response =  new List<BtcQuotation>() {
+                await getBTCQuotationAsync("eur"),
+                await getBTCQuotationAsync("usd") 
+            };
+            return Ok(response);
         }
 
         [HttpGet("daily")]
-        public async Task<string> getDailyCurrencyQuotation([FromQuery] string currency)
+        public async Task<IActionResult> getDailyCurrencyQuotation([FromQuery] string currency)
         {
             using var client = new HttpClient();
             var response = await client.GetAsync($"{API_CURRENCY}/daily/{currency}-BRL/10");
             var content = await response.Content.ReadAsStringAsync();
-            return content;
+            return Ok(content);
         }
 
         private async Task<string> getLastCurrencyQuotationAsync(string currency)
         {
             using var client = new HttpClient();
             var response = await client.GetAsync($"{API_CURRENCY}/last/{currency}-BRL");
-            var content = await response.Content.ReadAsStringAsync();
-            return content;
+            return await response.Content.ReadAsStringAsync();
         }
 
-        private async Task<string> getBTCQuotationAsync(string currency)
+        private async Task<BtcQuotation?> getBTCQuotationAsync(string currency)
         {
             using var client = new HttpClient();
             var response = await client.GetAsync($"{API_BTC}{currency}");
-            var content = await response.Content.ReadAsStringAsync();
+            string content = await response.Content.ReadAsStringAsync();
 
             JObject jsonObject = JObject.Parse(content);
-            JObject quotation = (JObject) jsonObject["result"];
+            var quotation = jsonObject["result"];
 
             string propertyKey = $"XXBTZ{currency.ToUpper()}";
 
-            var value = quotation[propertyKey]["a"][0];
-
-            return value.ToString();
+            if (quotation != null) {
+                var value = quotation[propertyKey]?["a"]?[0];
+                if (value != null) return new BtcQuotation() { Currency = currency, Quotation = value.ToString() };
+            }
+            return null;
         }
-
-
 
     }
 }
